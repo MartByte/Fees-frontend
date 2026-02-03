@@ -1,0 +1,205 @@
+import { Ionicons } from '@expo/vector-icons';
+import { Picker } from '@react-native-picker/picker';
+import React, { useState } from 'react';
+import { 
+    Alert, Image, KeyboardAvoidingView, Platform, ScrollView, 
+    StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator 
+} from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import ApiService from '../utils/apiService';
+
+export default function AddStudentScreen({ navigation }) {
+    const [formData, setFormData] = useState({
+        Fname: '',
+        Mname: '',
+        Lname: '',
+        class: '',
+        town: '',
+        guardianPhone: '',
+        profilePic: null
+    });
+    const [loading, setLoading] = useState(false);
+
+    const classOptions = ['KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS1', 'JHS2', 'JHS3'];
+    const townOptions = ['Dantano', 'Dantano road', 'Noberkaw', 'Kukuom', 'Yankye', 'Asufufuo', 'Anwiam', 'Tanoso', 'Siana', 'School'];
+
+    const handleSubmit = async () => {
+        // Validation: studentID is NO LONGER required here as backend generates it
+        if (!formData.Fname || !formData.Lname || !formData.class || !formData.town) {
+            Alert.alert('Missing Info', 'Please fill in all required fields (*)');
+            return;
+        }
+
+        setLoading(true);
+
+        // Prepare FormData for Multipart/form-data (required for images)
+        const data = new FormData();
+        data.append('Fname', formData.Fname);
+        data.append('Mname', formData.Mname);
+        data.append('Lname', formData.Lname);
+        data.append('class', formData.class);
+        data.append('town', formData.town);
+        data.append('guardianPhone', formData.guardianPhone);
+
+        if (formData.profilePic) {
+            const uri = formData.profilePic.uri;
+            const filename = uri.split('/').pop();
+            const match = /\.(\w+)$/.exec(filename);
+            const type = match ? `image/${match[1]}` : `image`;
+            
+            data.append('profilePic', {
+                uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
+                name: filename,
+                type: type,
+            });
+        }
+
+        try {
+            const result = await ApiService.addStudent(data);
+            if (result.success) {
+                // We show the generated ID to the user here
+                Alert.alert(
+                    'Success', 
+                    `Student added successfully!\nAssigned ID: ${result.studentID}`
+                );
+                navigation.goBack();
+            } else {
+                Alert.alert('Error', result.message || 'Failed to add student');
+            }
+        } catch (error) {
+            Alert.alert('Connection Error', 'Could not reach the server');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const pickImage = async () => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            Alert.alert('Permission Denied', 'We need camera roll access to add a photo.');
+            return;
+        }
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.5,
+        });
+
+        if (!result.canceled) {
+            setFormData(prev => ({ ...prev, profilePic: result.assets[0] }));
+        }
+    };
+
+    return (
+        <KeyboardAvoidingView 
+            style={styles.container}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <View style={styles.header}>
+                    <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+                        <Ionicons name="arrow-back" size={24} color="#000066" />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Add Student</Text>
+                </View>
+
+                <View style={styles.imageSection}>
+                    <TouchableOpacity style={styles.imagePickerCircle} onPress={pickImage}>
+                        {formData.profilePic ? (
+                            <Image source={{ uri: formData.profilePic.uri }} style={styles.profileImage} />
+                        ) : (
+                            <View style={styles.imagePlaceholder}>
+                                <Ionicons name="camera" size={32} color="#000066" />
+                                <Text style={styles.imagePlaceholderText}>Add Photo</Text>
+                            </View>
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.formContainer}>
+                    {/* Student ID field is REMOVED - Generated by Backend */}
+                    
+                    <InputField label="First Name *" value={formData.Fname} onChange={(t) => setFormData({...formData, Fname: t})} />
+                    <InputField label="Middle Name" value={formData.Mname} onChange={(t) => setFormData({...formData, Mname: t})} />
+                    <InputField label="Last Name *" value={formData.Lname} onChange={(t) => setFormData({...formData, Lname: t})} />
+
+                    <Text style={styles.label}>Class *</Text>
+                    <View style={styles.pickerWrapper}>
+                        <Picker
+                            selectedValue={formData.class}
+                            onValueChange={(v) => setFormData({...formData, class: v})}
+                        >
+                            <Picker.Item label="Select Class" value="" />
+                            {classOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
+                        </Picker>
+                    </View>
+
+                    <Text style={styles.label}>Town *</Text>
+                    <View style={styles.pickerWrapper}>
+                        <Picker
+                            selectedValue={formData.town}
+                            onValueChange={(v) => setFormData({...formData, town: v})}
+                        >
+                            <Picker.Item label="Select Town" value="" />
+                            {townOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
+                        </Picker>
+                    </View>
+
+                    <InputField 
+                        label="Guardian's Phone" 
+                        value={formData.guardianPhone} 
+                        onChange={(t) => setFormData({...formData, guardianPhone: t})} 
+                        keyboard="phone-pad"
+                    />
+                </View>
+
+                <TouchableOpacity 
+                    style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                    onPress={handleSubmit}
+                    disabled={loading}
+                >
+                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>Register Student</Text>}
+                </TouchableOpacity>
+            </ScrollView>
+        </KeyboardAvoidingView>
+    );
+}
+
+const InputField = ({ label, value, onChange, keyboard = "default" }) => (
+    <View style={styles.inputGroup}>
+        <Text style={styles.label}>{label}</Text>
+        <TextInput 
+            value={value} 
+            onChangeText={onChange} 
+            style={styles.input}
+            keyboardType={keyboard}
+        />
+    </View>
+);
+
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#fff6e9' },
+    scrollContent: { padding: 20 },
+    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingTop: 40 },
+    backButton: { marginRight: 15 },
+    title: { fontSize: 24, fontWeight: 'bold', color: '#000066' },
+    imageSection: { alignItems: 'center', marginBottom: 20 },
+    imagePickerCircle: { 
+        width: 110, height: 110, borderRadius: 55, backgroundColor: '#fff', 
+        justifyContent: 'center', alignItems: 'center', elevation: 4,
+        borderWidth: 2, borderColor: '#000066', overflow: 'hidden'
+    },
+    profileImage: { width: '100%', height: '100%' },
+    imagePlaceholder: { alignItems: 'center' },
+    imagePlaceholderText: { fontSize: 12, color: '#000066', fontWeight: '600' },
+    formContainer: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, elevation: 3 },
+    inputGroup: { marginBottom: 15 },
+    label: { fontSize: 14, fontWeight: '700', color: '#000066', marginBottom: 5 },
+    input: { backgroundColor: '#fff6e9', borderRadius: 10, padding: 12, fontSize: 16, borderWidth: 1, borderColor: '#E5E7EB' },
+    pickerWrapper: { backgroundColor: '#fff6e9', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 15 },
+    submitButton: { backgroundColor: '#000066', padding: 18, borderRadius: 15, alignItems: 'center', marginTop: 20 },
+    submitButtonDisabled: { backgroundColor: '#9CA3AF' },
+    submitButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 18 },
+});
