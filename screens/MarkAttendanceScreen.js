@@ -70,14 +70,13 @@ const MarkAttendanceScreen = ({ route }) => {
         
         // Check if the current user is a teacher or admin
         // This assumes you pass 'role' in your route params or have it in state
-        const isTeacher = !!teacherID || !!teacher?.teacherID;
+        const effectiveTeacherID = teacherID || (teacher ? teacher.teacherID : null);
+        const isTeacher = !!effectiveTeacherID;
         
         const payload = {
             studentID: parseInt(studentID),
-            // If teacher, send teacherID. If admin, send null for teacherID.
-            teacherID: isTeacher ? (teacherID || teacher.teacherID) : null,
-            // If admin, send your ID (e.g., 105).
-            adminID: !isTeacher ? 105 : null, 
+            teacherID: isTeacher ? effectiveTeacherID : null,
+            adminID: !isTeacher ? 105 : null, // Static ID for admin
             class: selectedClass, 
             date: formattedDate,
             status: status,

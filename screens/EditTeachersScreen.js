@@ -10,7 +10,8 @@ import {
     View, 
     ScrollView, 
     KeyboardAvoidingView, 
-    Platform 
+    Platform,
+    StyleSheet
 } from 'react-native';
 import ApiService from '../utils/apiService';
 
@@ -32,8 +33,8 @@ export default function EditTeacherScreen({ route }) {
     };
 
     const handleUpdate = async () => {
-        if (!Fname || !Lname) {
-            Alert.alert('Missing Fields', 'Please enter first name and last name.');
+        if (!Fname || !Lname || !phone) {
+            Alert.alert('Missing Fields', 'First Name, Last Name, and Phone are required.');
             return;
         }
 
@@ -47,20 +48,26 @@ export default function EditTeacherScreen({ route }) {
 
         setLoading(true);
         try {
-            const updatedData = {
-                Fname, Mname, Lname,
-                className: className.trim(),
-                phone, town
+            // Mapping UI 'className' back to DB 'assignedClass'
+            const teacherData = {
+                Fname: Fname.trim(),
+                Mname: Mname.trim(),
+                Lname: Lname.trim(),
+                assignedClass: className.trim(), 
+                phone: phone.trim(),
+                town: town.trim()
             };
-            const result = await ApiService.updateTeacher(teacher.teacherID, updatedData);
+
+            const result = await ApiService.updateTeacher(teacher.teacherID, teacherData);
+            
             if (result.success) {
                 Alert.alert('Success', 'Teacher updated successfully!');
                 navigation.goBack();
             } else {
-                Alert.alert('Error', result.message || 'Failed to update teacher');
+                Alert.alert('Update Failed', result.message || 'Check your connection.');
             }
         } catch (error) {
-            Alert.alert('Error', 'Failed to update teacher. Please try again.');
+            Alert.alert('Error', 'An unexpected error occurred.');
         } finally {
             setLoading(false);
         }
@@ -74,7 +81,7 @@ export default function EditTeacherScreen({ route }) {
             <View style={styles.container}>
                 <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
 
-                {/* Header - Fixed at Top */}
+                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity
                         style={styles.backButton}
@@ -84,24 +91,26 @@ export default function EditTeacherScreen({ route }) {
                     </TouchableOpacity>
                     <View style={styles.headerContent}>
                         <Text style={styles.headerTitle}>Edit Teacher</Text>
-                        <Text style={styles.headerSubtitle}>Update teacher information</Text>
+                        <Text style={styles.headerSubtitle}>ID: {teacher.teacherID}</Text>
                     </View>
                 </View>
 
-                {/* Scrollable Form Area */}
                 <ScrollView 
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.scrollContent}
                 >
                     <View style={styles.formSection}>
+                        {/* Name Section */}
+                        <Text style={styles.sectionLabel}>Personal Details</Text>
+                        
                         <View style={styles.inputGroup}>
                             <Text style={styles.inputLabel}>First Name *</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="Enter first name"
                                 value={Fname}
                                 onChangeText={setFname}
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="Enter first name"
+                                autoCapitalize="words"
                             />
                         </View>
 
@@ -109,10 +118,10 @@ export default function EditTeacherScreen({ route }) {
                             <Text style={styles.inputLabel}>Middle Name</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="Optional"
                                 value={Mname}
                                 onChangeText={setMname}
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="Optional"
+                                autoCapitalize="words"
                             />
                         </View>
 
@@ -120,33 +129,35 @@ export default function EditTeacherScreen({ route }) {
                             <Text style={styles.inputLabel}>Last Name *</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="Enter last name"
                                 value={Lname}
                                 onChangeText={setLname}
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="Enter last name"
+                                autoCapitalize="words"
                             />
                         </View>
+
+                        <View style={styles.divider} />
+                        <Text style={styles.sectionLabel}>Work & Contact</Text>
 
                         <View style={styles.inputGroup}>
                             <Text style={styles.inputLabel}>Assigned Class</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="e.g., Basic 1, KG1, JHS1"
                                 value={className}
                                 onChangeText={setClassName}
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="e.g., Basic 1"
+                                autoCapitalize="none"
                             />
                         </View>
 
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>Phone *</Text>
+                            <Text style={styles.inputLabel}>Phone Number *</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="+233..."
                                 value={phone}
                                 onChangeText={setPhone}
                                 keyboardType="phone-pad"
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="+233..."
                             />
                         </View>
 
@@ -154,31 +165,24 @@ export default function EditTeacherScreen({ route }) {
                             <Text style={styles.inputLabel}>Town</Text>
                             <TextInput
                                 style={styles.textInput}
-                                placeholder="Enter town"
                                 value={town}
                                 onChangeText={setTown}
-                                placeholderTextColor="#9CA3AF"
+                                placeholder="Enter town location"
                             />
                         </View>
                     </View>
 
-                    {/* Update Button - Inside ScrollView to ensure visibility */}
                     <TouchableOpacity
                         style={[styles.updateButton, loading && styles.updateButtonDisabled]}
                         onPress={handleUpdate}
                         disabled={loading}
                     >
-                        {loading ? (
-                            <Text style={styles.updateButtonText}>Updating...</Text>
-                        ) : (
-                            <>
-                                <Ionicons name="checkmark-circle" size={20} color="#FFFFFF" />
-                                <Text style={styles.updateButtonText}>Save Changes</Text>
-                            </>
-                        )}
+                        <Ionicons name="save-outline" size={20} color="#FFFFFF" />
+                        <Text style={styles.updateButtonText}>
+                            {loading ? "Saving..." : "Save Changes"}
+                        </Text>
                     </TouchableOpacity>
                     
-                    {/* Extra space at bottom for scrolling comfort */}
                     <View style={{ height: 40 }} />
                 </ScrollView>
             </View>
@@ -186,11 +190,8 @@ export default function EditTeacherScreen({ route }) {
     );
 }
 
-const styles = {
-    container: {
-        flex: 1,
-        backgroundColor: '#F8FAFC',
-    },
+const styles = StyleSheet.create({
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -202,80 +203,37 @@ const styles = {
         borderBottomColor: '#E2E8F0',
     },
     backButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#F1F5F9',
-        justifyContent: 'center',
-        alignItems: 'center',
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center',
         marginRight: 12,
     },
-    headerContent: {
-        flex: 1,
-    },
-    headerTitle: {
-        fontSize: 22,
-        fontWeight: 'bold',
-        color: '#1E293B',
-    },
-    headerSubtitle: {
-        fontSize: 14,
-        color: '#64748B',
-    },
-    scrollContent: {
-        paddingBottom: 20,
-    },
+    headerContent: { flex: 1 },
+    headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
+    headerSubtitle: { fontSize: 13, color: '#64748B' },
+    scrollContent: { paddingVertical: 10 },
     formSection: {
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        margin: 20,
-        padding: 20,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
+        backgroundColor: '#FFFFFF', borderRadius: 16,
+        margin: 20, padding: 20,
+        elevation: 3, shadowColor: '#000', shadowOpacity: 0.1,
+        shadowRadius: 10, shadowOffset: { width: 0, height: 4 },
     },
-    inputGroup: {
-        marginBottom: 16,
+    sectionLabel: { 
+        fontSize: 12, fontWeight: 'bold', color: '#94A3B8', 
+        textTransform: 'uppercase', marginBottom: 15, letterSpacing: 1 
     },
-    inputLabel: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#475569',
-        marginBottom: 8,
-    },
+    inputGroup: { marginBottom: 16 },
+    inputLabel: { fontSize: 14, fontWeight: '600', color: '#475569', marginBottom: 8 },
     textInput: {
-        borderWidth: 1,
-        borderColor: '#E2E8F0',
-        borderRadius: 10,
-        paddingHorizontal: 15,
-        paddingVertical: 12,
-        fontSize: 16,
-        backgroundColor: '#F8FAFC',
-        color: '#1E293B',
+        borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10,
+        paddingHorizontal: 15, paddingVertical: 12, fontSize: 16,
+        backgroundColor: '#F8FAFC', color: '#1E293B',
     },
+    divider: { height: 1, backgroundColor: '#F1F5F9', marginVertical: 20 },
     updateButton: {
-        backgroundColor: '#000066',
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingVertical: 16,
-        marginHorizontal: 20,
-        borderRadius: 12,
-        elevation: 4,
-        shadowColor: '#000066',
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        shadowOffset: { width: 0, height: 4 },
+        backgroundColor: '#000066', flexDirection: 'row',
+        alignItems: 'center', justifyContent: 'center',
+        paddingVertical: 16, marginHorizontal: 20, borderRadius: 12,
     },
-    updateButtonDisabled: {
-        backgroundColor: '#94A3B8',
-    },
-    updateButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginLeft: 8,
-    },
-};
+    updateButtonDisabled: { backgroundColor: '#94A3B8' },
+    updateButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: 'bold', marginLeft: 8 },
+});

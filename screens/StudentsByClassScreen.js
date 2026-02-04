@@ -1,47 +1,50 @@
-// screens/StudentsByClassScreen.js
 import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
 import { useNavigation } from '@react-navigation/native';
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { 
+    ActivityIndicator, Alert, FlatList, StyleSheet, 
+    Text, TouchableOpacity, View, StatusBar, Platform 
+} from 'react-native';
 import ApiService from '../utils/apiService';
 
 export default function StudentsByClassScreen() {
     const [selectedClass, setSelectedClass] = useState('');
     const [students, setStudents] = useState([]);
     const [loading, setLoading] = useState(false);
-    const classOptions = ['KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS1', 'JHS2', 'JHS3'];
     const navigation = useNavigation();
+
+    const classOptions = ['KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS1', 'JHS2', 'JHS3'];
 
     useEffect(() => {
         if (selectedClass) {
             fetchStudentsByClass(selectedClass);
+        } else {
+            setStudents([]);
         }
     }, [selectedClass]);
 
     const fetchStudentsByClass = async (className) => {
         setLoading(true);
         try {
-
             const result = await ApiService.getStudentsByClass(className);
             if (result.success) {
-
-                setStudents(result.data);
+                // Sorting alphabetically by name for better UX
+                const sortedData = result.data.sort((a, b) => a.fullName.localeCompare(b.fullName));
+                setStudents(sortedData);
             } else {
-                Alert.alert('Error', `Failed to fetch students: ${result.message}`);
+                Alert.alert('Error', result.message || 'Failed to fetch students');
             }
         } catch (err) {
-            console.error('Error fetching students:', err);
-            console.error('Error details:', err.response?.data);
-            Alert.alert('Error', `Failed to fetch students: ${err.message}`);
+            Alert.alert('Error', 'Connection failed. Please check your server.');
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     };
 
     const handleDeleteStudent = (student) => {
         Alert.alert(
-            'Confirm Delete',
-            `Are you sure you want to delete ${student.fullName}?`,
+            'Delete Student',
+            `This will move ${student.fullName} to the trash. Continue?`,
             [
                 { text: 'Cancel', style: 'cancel' },
                 {
@@ -51,10 +54,7 @@ export default function StudentsByClassScreen() {
                         try {
                             const result = await ApiService.deleteStudent(student.studentID);
                             if (result.success) {
-                                Alert.alert('Success', 'Student deleted successfully');
-                                fetchStudentsByClass(selectedClass); // Refresh the list
-                            } else {
-                                Alert.alert('Error', result.message || 'Failed to delete student');
+                                fetchStudentsByClass(selectedClass);
                             }
                         } catch (err) {
                             Alert.alert('Error', 'Failed to delete student');
@@ -67,28 +67,42 @@ export default function StudentsByClassScreen() {
 
     const renderStudentCard = ({ item }) => (
         <View style={styles.studentCard}>
-            <View style={styles.studentInfo}>
-                <Text style={styles.name}>{item.fullName}</Text>
-                <Text style={styles.details}>Town: {item.town}</Text>
-                <Text style={styles.details}>Class: {item.class}</Text>
-                <Text style={styles.details}>ID: {item.studentID}</Text>
+            <View style={styles.cardHeader}>
+                <View style={styles.avatar}>
+                    <Text style={styles.avatarText}>{item.fullName.charAt(0)}</Text>
+                </View>
+                <View style={styles.mainInfo}>
+                    <Text style={styles.name}>{item.fullName}</Text>
+                    <Text style={styles.studentIdText}>ID: {item.studentID}</Text>
+                </View>
             </View>
             
-            <View style={styles.actionButtons}>
+            <View style={styles.cardDetails}>
+                <View style={styles.detailItem}>
+                    <Ionicons name="location-outline" size={14} color="#64748B" />
+                    <Text style={styles.detailText}>{item.town || 'No Town'}</Text>
+                </View>
+                <View style={styles.detailItem}>
+                    <Ionicons name="school-outline" size={14} color="#64748B" />
+                    <Text style={styles.detailText}>{item.class}</Text>
+                </View>
+            </View>
+
+            <View style={styles.cardActions}>
                 <TouchableOpacity
-                    style={styles.editButton}
+                    style={[styles.actionBtn, styles.editBtn]}
                     onPress={() => navigation.navigate('EditStudent', { student: item })}
                 >
-                    <Ionicons name="pencil" size={18} color="#FFFFFF" />
-                    <Text style={styles.buttonText}>Edit</Text>
+                    <Ionicons name="create-outline" size={18} color="#000066" />
+                    <Text style={styles.editBtnText}>Edit</Text>
                 </TouchableOpacity>
                 
                 <TouchableOpacity
-                    style={styles.deleteButton}
+                    style={[styles.actionBtn, styles.deleteBtn]}
                     onPress={() => handleDeleteStudent(item)}
                 >
-                    <Ionicons name="trash" size={18} color="#FFFFFF" />
-                    <Text style={styles.buttonText}>Delete</Text>
+                    <Ionicons name="trash-outline" size={18} color="#EF4444" />
+                    <Text style={styles.deleteBtnText}>Delete</Text>
                 </TouchableOpacity>
             </View>
         </View>
@@ -96,133 +110,132 @@ export default function StudentsByClassScreen() {
 
     return (
         <View style={styles.container}>
+            <StatusBar barStyle="dark-content" />
+            
+            {/* Custom Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color="#1E293B" />
                 </TouchableOpacity>
-                <Text style={styles.heading}>Students by Class</Text>
+                <View>
+                    <Text style={styles.headerTitle}>Class Directory</Text>
+                    <Text style={styles.headerSubtitle}>{students.length} Students Total</Text>
+                </View>
             </View>
-            <Picker
-                selectedValue={selectedClass}
-                style={styles.picker}
-                onValueChange={(itemValue) => setSelectedClass(itemValue)}
-            >
-                <Picker.Item label="Select Class" value="" />
-                {classOptions.map((cls) => (
-                    <Picker.Item key={cls} label={cls} value={cls} />
-                ))}
-            </Picker>
+
+            {/* Class Selector - Horizontal Scroll for better UX */}
+            <View style={styles.selectorContainer}>
+                <Text style={styles.label}>Select Class:</Text>
+                <FlatList
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    data={classOptions}
+                    keyExtractor={(item) => item}
+                    renderItem={({ item }) => (
+                        <TouchableOpacity 
+                            style={[styles.classTab, selectedClass === item && styles.activeTab]}
+                            onPress={() => setSelectedClass(item)}
+                        >
+                            <Text style={[styles.classTabText, selectedClass === item && styles.activeTabText]}>
+                                {item}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+                    contentContainerStyle={styles.tabsContent}
+                />
+            </View>
 
             {loading ? (
-                <View style={styles.loadingContainer}>
+                <View style={styles.centerContainer}>
                     <ActivityIndicator size="large" color="#000066" />
-                    <Text style={styles.loadingText}>Loading students...</Text>
+                    <Text style={styles.loadingText}>Fetching Student Data...</Text>
                 </View>
-            ) : (
+            ) : students.length > 0 ? (
                 <FlatList
                     data={students}
-                    keyExtractor={(item) => item.studentID}
+                    keyExtractor={(item) => item.studentID.toString()}
                     renderItem={renderStudentCard}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.listContainer}
                 />
+            ) : (
+                <View style={styles.centerContainer}>
+                    <Ionicons name="people-outline" size={64} color="#CBD5E1" />
+                    <Text style={styles.emptyText}>
+                        {selectedClass ? 'No students found in this class' : 'Choose a class to begin'}
+                    </Text>
+                </View>
             )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { 
-        flex: 1, 
-        backgroundColor: '#fff6e9',
-        padding: 20 
-    },
+    container: { flex: 1, backgroundColor: '#F8FAFC' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 20,
-        paddingTop: 10
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'ios' ? 50 : 20,
+        paddingBottom: 15,
+        backgroundColor: '#FFFFFF',
     },
     backButton: {
-        padding: 8,
-        marginRight: 12,
-        borderRadius: 8,
-        backgroundColor: '#F1F5F9'
+        width: 40, height: 40, borderRadius: 20,
+        backgroundColor: '#F1F5F9', justifyContent: 'center', alignItems: 'center',
+        marginRight: 15,
     },
-    heading: { 
-        fontSize: 24, 
-        fontWeight: 'bold', 
-        color: '#000066'
+    headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#000066' },
+    headerSubtitle: { fontSize: 13, color: '#64748B' },
+    
+    selectorContainer: { backgroundColor: '#FFFFFF', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+    label: { fontSize: 12, fontWeight: 'bold', color: '#94A3B8', marginLeft: 20, marginBottom: 8, textTransform: 'uppercase' },
+    tabsContent: { paddingHorizontal: 15, paddingBottom: 5 },
+    classTab: { 
+        paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, 
+        backgroundColor: '#F1F5F9', marginRight: 10, borderWidth: 1, borderColor: '#E2E8F0' 
     },
-    picker: { 
-        height: 50, 
-        marginBottom: 20,
-        backgroundColor: '#FFFFFF',
-        borderRadius: 12,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        marginTop: 16,
-        fontSize: 16,
-        color: '#6B7280',
-    },
-    listContainer: {
-        paddingBottom: 20,
-    },
+    activeTab: { backgroundColor: '#000066', borderColor: '#000066' },
+    classTabText: { fontWeight: '600', color: '#475569' },
+    activeTabText: { color: '#FFFFFF' },
+
+    listContainer: { padding: 15 },
     studentCard: { 
-        backgroundColor: '#FFFFFF',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.1,
-        shadowRadius: 8,
-        elevation: 3,
+        backgroundColor: '#FFFFFF', borderRadius: 16, padding: 16, marginBottom: 15,
+        shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05, shadowRadius: 10, elevation: 3 
     },
-    studentInfo: {
-        marginBottom: 12,
+    cardHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
+    avatar: { 
+        width: 45, height: 45, borderRadius: 22.5, backgroundColor: '#E0E7FF', 
+        justifyContent: 'center', alignItems: 'center', marginRight: 12 
     },
-    name: { 
-        fontWeight: 'bold',
-        fontSize: 18,
-        marginBottom: 8,
-        color: '#000066'
+    avatarText: { color: '#4338CA', fontSize: 18, fontWeight: 'bold' },
+    mainInfo: { flex: 1 },
+    name: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
+    studentIdText: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+    
+    cardDetails: { 
+        flexDirection: 'row', gap: 15, paddingVertical: 10, 
+        borderTopWidth: 1, borderTopColor: '#F1F5F9' 
     },
-    details: { 
-        fontSize: 14,
-        color: '#6B7280',
-        marginBottom: 4,
+    detailItem: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+    detailText: { fontSize: 13, color: '#64748B' },
+
+    cardActions: { 
+        flexDirection: 'row', gap: 10, marginTop: 10, 
+        paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' 
     },
-    actionButtons: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
+    actionBtn: { 
+        flex: 1, flexDirection: 'row', alignItems: 'center', 
+        justifyContent: 'center', paddingVertical: 8, borderRadius: 8, gap: 5 
     },
-    editButton: {
-        backgroundColor: '#3B82F6',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 8,
-    },
-    deleteButton: {
-        backgroundColor: '#EF4444',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 8,
-        paddingHorizontal: 12,
-        borderRadius: 8,
-    },
-    buttonText: {
-        color: '#FFFFFF',
-        fontWeight: '600',
-        fontSize: 14,
-        marginLeft: 4,
-    },
+    editBtn: { backgroundColor: '#EEF2FF', borderWidth: 1, borderColor: '#C7D2FE' },
+    deleteBtn: { backgroundColor: '#FEF2F2', borderWidth: 1, borderColor: '#FECACA' },
+    editBtnText: { color: '#000066', fontWeight: 'bold', fontSize: 13 },
+    deleteBtnText: { color: '#EF4444', fontWeight: 'bold', fontSize: 13 },
+
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 },
+    loadingText: { marginTop: 15, color: '#64748B', fontWeight: '500' },
+    emptyText: { marginTop: 15, color: '#94A3B8', textAlign: 'center', fontSize: 16 }
 });

@@ -35,18 +35,14 @@ const SelectClassScreen = ({ route, navigation }) => {
     }, [teacherID]);
 
     const handleClassSelect = (className) => {
-        // DEBUG: Check this in your terminal!
-        console.log("NAVIGATING WITH:", { 
-            className, 
-            teacherID, 
-            hasTeacherObject: !!teacher 
-        });
-
-        // 2. Pass everything explicitly
+        // 1. Determine who is marking attendance
+        // If it's an admin, teacher will be undefined, so we use null or the adminID
+        const currentTeacherID = teacherID || (teacher ? teacher.teacherID : null);
+    
         navigation.navigate('MarkAttendance', { 
-            className: teacher.assignedClass, 
-            teacherID: teacher.teacherID, 
-            teacher: teacher  
+            className: className, // Use the class that was actually clicked
+            teacherID: currentTeacherID, 
+            teacher: teacher || null // Pass null if it's an admin
         });
     };
 
