@@ -3,12 +3,11 @@ import Constants from 'expo-constants';
 const { manifest2, manifest } = Constants;
 
 const getHost = () => {
-    // This gets your computer's IP address automatically
-    if (manifest2?.extra?.expoGo?.hostUri) {
-        return manifest2.extra.expoGo.hostUri.split(':')[0];
-    }
-    if (manifest?.debuggerHost) {
-        return manifest.debuggerHost.split(':')[0];
+    // New SDK 54 way
+    const debuggerHost = Constants.expoConfig?.hostUri || Constants.manifest2?.extra?.expoGo?.hostUri;
+    
+    if (debuggerHost) {
+        return debuggerHost.split(':')[0];
     }
     return 'localhost';
 };

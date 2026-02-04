@@ -12,10 +12,11 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import Config from '../config';
 import io from 'socket.io-client';
+import { CommonActions } from '@react-navigation/native'; // Add this at the top
 import SessionManager from '../utils/sessionManager';
 import eventStack from '../utils/events';
 
-const AdminDashboardScreen = ({ navigation, onLogout }) => {
+const AdminDashboardScreen = ({ navigation }) => {
   // 1. Initialize with default numbers to prevent "Text strings" errors
   // when stats is null or undefined during the first render.
   const [stats, setStats] = useState({
@@ -76,7 +77,7 @@ const AdminDashboardScreen = ({ navigation, onLogout }) => {
     };
   }, [loadData]);
 
-  const handleLogout = () => {
+ const handleLogout = () => {
   Alert.alert("Logout", "Are you sure you want to sign out?", [
     { text: "Cancel", style: "cancel" },
     {

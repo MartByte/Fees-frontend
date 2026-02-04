@@ -22,7 +22,6 @@ import EditTeacherScreen from './screens/EditTeachersScreen';
 import ForgotPasswordScreen from './screens/ForgotPasswordScreen';
 import LoginScreen from './screens/LoginScreen';
 import MarkAttendanceScreen from './screens/MarkAttendanceScreen';
-import AdminClassAttendanceScreen from './screens/AdminClassAttendanceScreen';
 import MonthlyCanteenReportScreen from './screens/MonthlyCanteenReportScreen';
 import RegisterScreen from './screens/RegisterScreen';
 import SelectClassScreen from './screens/SelectClassScreen';
@@ -45,84 +44,6 @@ import eventStack from './utils/events';
 
 const Stack = createNativeStackNavigator();
 const Drawer = createDrawerNavigator();
-
-// ========== ADMIN DRAWER COMPONENT ==========
-// Added { handleLogout } destructuring here
-function AdminDrawer() {
-  return (
-    <Drawer.Navigator
-      initialRouteName="AdminDashboard"
-      screenOptions={{
-        headerStyle: { backgroundColor: '#000066' },
-        headerTintColor: '#fff',
-        headerTitleStyle: { fontWeight: 'bold' },
-        drawerStyle: { backgroundColor: '#fff6e9', width: 280 },
-        drawerActiveTintColor: '#000066',
-        drawerInactiveTintColor: '#6B7280',
-      }}
-    >
-      <Drawer.Screen
-        name="AdminDashboard"
-        component={AdminDashboardScreen}
-        // Pass the function into the screen via initialParams
-        initialParams={{ onLogout: handleLogout }}
-        options={{
-          title: 'Dashboard',
-          drawerIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="StudentsByClass"
-        component={StudentsByClassScreen}
-        options={{
-          title: 'Students by Class',
-          drawerIcon: ({ color, size }) => <Ionicons name="school" size={size} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="StudentsByTown"
-        component={StudentsByTownScreen}
-        options={{
-          title: 'Students by Town',
-          drawerIcon: ({ color, size }) => <Ionicons name="location" size={size} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="AllStudents"
-        component={AllStudentsScreen}
-        options={{
-          title: 'All Students',
-          drawerIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="AllTeachers"
-        component={AllTeachersScreen}
-        options={{
-          title: 'All Teachers',
-          drawerIcon: ({ color, size }) => <Ionicons name="people-circle" size={size} color={color} />,
-        }}
-      />
-      <Drawer.Screen
-        name="TeacherAttendance"
-        component={TeacherAttendanceScreen}
-        options={{
-          title: 'Teacher Attendance',
-          drawerIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
-        }}
-      />
-
-      <Drawer.Screen
-        name="MarkStudentsAttendance"
-        component={SelectClassScreen}
-        options={{
-          title: 'Students Attendance',
-          drawerIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
-        }}
-      />
-    </Drawer.Navigator>
-  );
-}
 
 // ========== MAIN APP COMPONENT ==========
 export default function App() {
@@ -183,17 +104,10 @@ export default function App() {
         style: 'destructive',
         onPress: async () => {
           try {
-            // 1. Clear the physical storage
-            await SessionManager.logout();
-  
-            // 2. Force navigation to reset and go to Login
-            // This bypasses the need for the App.js state update
-            navigation.dispatch(
-              CommonActions.reset({
-                index: 0,
-                routes: [{ name: 'Login' }],
-              })
-            );
+            await SessionManager.logout(); // 1. Clear storage
+            setIsLoggedIn(false);          // 2. Update state (Navigates to Login automatically)
+            setUserRole(null);
+            setUserId(null);
           } catch (error) {
             console.error("Logout error", error);
           }
@@ -201,6 +115,83 @@ export default function App() {
       }
     ]);
   };
+
+
+  // ========== ADMIN DRAWER COMPONENT ==========
+function AdminDrawer() {
+  return (
+    <Drawer.Navigator
+      initialRouteName="AdminDashboard"
+      screenOptions={{
+        headerStyle: { backgroundColor: '#000066' },
+        headerTintColor: '#fff',
+        headerTitleStyle: { fontWeight: 'bold' },
+        drawerStyle: { backgroundColor: '#fff6e9', width: 280 },
+        drawerActiveTintColor: '#000066',
+        drawerInactiveTintColor: '#6B7280',
+      }}
+    >
+      <Drawer.Screen
+        name="AdminDashboard"
+        component={AdminDashboardScreen}
+        options={{
+          title: 'Dashboard',
+          drawerIcon: ({ color, size }) => <Ionicons name="home" size={size} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="StudentsByClass"
+        component={StudentsByClassScreen}
+        options={{
+          title: 'Students by Class',
+          drawerIcon: ({ color, size }) => <Ionicons name="school" size={size} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="StudentsByTown"
+        component={StudentsByTownScreen}
+        options={{
+          title: 'Students by Town',
+          drawerIcon: ({ color, size }) => <Ionicons name="location" size={size} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="AllStudents"
+        component={AllStudentsScreen}
+        options={{
+          title: 'All Students',
+          drawerIcon: ({ color, size }) => <Ionicons name="people" size={size} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="AllTeachers"
+        component={AllTeachersScreen}
+        options={{
+          title: 'All Teachers',
+          drawerIcon: ({ color, size }) => <Ionicons name="people-circle" size={size} color={color} />,
+        }}
+      />
+      <Drawer.Screen
+        name="TeacherAttendance"
+        component={TeacherAttendanceScreen}
+        options={{
+          title: 'Teacher Attendance',
+          drawerIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+        }}
+      />
+
+      <Drawer.Screen
+        name="MarkStudentsAttendance"
+        component={SelectClassScreen}
+        options={{
+          title: 'Students Attendance',
+          drawerIcon: ({ color, size }) => <Ionicons name="checkmark-circle" size={size} color={color} />,
+        }}
+      />
+    </Drawer.Navigator>
+  );
+}
+
 
   if (isLoading) {
     return (
@@ -242,7 +233,6 @@ export default function App() {
             <Stack.Screen name="MarkAttendance" component={MarkAttendanceScreen} />
             <Stack.Screen name="CollectCanteen" component={CollectCanteenScreen} />
             <Stack.Screen name="TeacherClassRecords" component={TeacherClassRecordsScreen} />
-            <Stack.Screen name="AdminClassAttendance" component={AdminClassAttendanceScreen} />
             <Stack.Screen name="SelectClass" component={SelectClassScreen} />
             <Stack.Screen name="Reports" component={ReportsMenuScreen} />
             <Stack.Screen name="AttendanceGapList" component={AttendanceGapListScreen} />

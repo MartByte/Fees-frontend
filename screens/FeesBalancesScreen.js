@@ -10,7 +10,7 @@ const FeesBalancesScreen = () => {
     const [search, setSearch] = useState('');
 
     useEffect(() => {
-        fetch(`${Config.API_BASE_URL}/reports/balances`) // Verify if /admin prefix is needed
+        fetch(`${Config.API_BASE_URL}/admin/reports/balances`) // Verify if /admin prefix is needed
             .then(res => res.json())
             .then(res => {
                 if (res.success && res.data) {
