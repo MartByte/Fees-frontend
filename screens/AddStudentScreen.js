@@ -2,10 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
 import React, { useState } from 'react';
 import { 
-    Alert, Image, KeyboardAvoidingView, Platform, ScrollView, 
+    Alert, KeyboardAvoidingView, Platform, ScrollView, 
     StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator 
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
 import ApiService from '../utils/apiService';
 
 export default function AddStudentScreen({ navigation }) {
@@ -15,8 +14,7 @@ export default function AddStudentScreen({ navigation }) {
         Lname: '',
         class: '',
         town: '',
-        guardianPhone: '',
-        profilePic: null
+        guardianPhone: ''
     });
     const [loading, setLoading] = useState(false);
 
@@ -24,7 +22,7 @@ export default function AddStudentScreen({ navigation }) {
     const townOptions = ['Dantano', 'Dantano road', 'Noberkaw', 'Kukuom', 'Yankye', 'Asufufuo', 'Anwiam', 'Tanoso', 'Siana', 'School'];
 
     const handleSubmit = async () => {
-        // Validation: studentID is NO LONGER required here as backend generates it
+        // Validation: Ensure required fields are filled
         if (!formData.Fname || !formData.Lname || !formData.class || !formData.town) {
             Alert.alert('Missing Info', 'Please fill in all required fields (*)');
             return;
@@ -32,35 +30,22 @@ export default function AddStudentScreen({ navigation }) {
 
         setLoading(true);
 
-        // Prepare FormData for Multipart/form-data (required for images)
-        const data = new FormData();
-        data.append('Fname', formData.Fname);
-        data.append('Mname', formData.Mname);
-        data.append('Lname', formData.Lname);
-        data.append('class', formData.class);
-        data.append('town', formData.town);
-        data.append('guardianPhone', formData.guardianPhone);
-
-        if (formData.profilePic) {
-            const uri = formData.profilePic.uri;
-            const filename = uri.split('/').pop();
-            const match = /\.(\w+)$/.exec(filename);
-            const type = match ? `image/${match[1]}` : `image`;
-            
-            data.append('profilePic', {
-                uri: Platform.OS === 'ios' ? uri.replace('file://', '') : uri,
-                name: filename,
-                type: type,
-            });
-        }
+        // Prepare simple JSON data (FormData is no longer needed since we removed the image)
+        const studentData = {
+            Fname: formData.Fname,
+            Mname: formData.Mname,
+            Lname: formData.Lname,
+            class: formData.class,
+            town: formData.town,
+            guardianPhone: formData.guardianPhone
+        };
 
         try {
-            const result = await ApiService.addStudent(data);
+            const result = await ApiService.addStudent(studentData);
             if (result.success) {
-                // We show the generated ID to the user here
                 Alert.alert(
                     'Success', 
-                    `Student added successfully!\nAssigned ID: ${result.studentID}`
+                    `Student registered successfully!\nAssigned ID: ${result.studentID}`
                 );
                 navigation.goBack();
             } else {
@@ -73,65 +58,51 @@ export default function AddStudentScreen({ navigation }) {
         }
     };
 
-    const pickImage = async () => {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-            Alert.alert('Permission Denied', 'We need camera roll access to add a photo.');
-            return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [1, 1],
-            quality: 0.5,
-        });
-
-        if (!result.canceled) {
-            setFormData(prev => ({ ...prev, profilePic: result.assets[0] }));
-        }
-    };
-
     return (
         <KeyboardAvoidingView 
             style={styles.container}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                {/* Simplified Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#000066" />
                     </TouchableOpacity>
-                    <Text style={styles.title}>Add Student</Text>
-                </View>
-
-                <View style={styles.imageSection}>
-                    <TouchableOpacity style={styles.imagePickerCircle} onPress={pickImage}>
-                        {formData.profilePic ? (
-                            <Image source={{ uri: formData.profilePic.uri }} style={styles.profileImage} />
-                        ) : (
-                            <View style={styles.imagePlaceholder}>
-                                <Ionicons name="camera" size={32} color="#000066" />
-                                <Text style={styles.imagePlaceholderText}>Add Photo</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
+                    <View>
+                        <Text style={styles.title}>Student Registration</Text>
+                        <Text style={styles.subtitle}>Enter student details below</Text>
+                    </View>
                 </View>
 
                 <View style={styles.formContainer}>
-                    {/* Student ID field is REMOVED - Generated by Backend */}
-                    
-                    <InputField label="First Name *" value={formData.Fname} onChange={(t) => setFormData({...formData, Fname: t})} />
-                    <InputField label="Middle Name" value={formData.Mname} onChange={(t) => setFormData({...formData, Mname: t})} />
-                    <InputField label="Last Name *" value={formData.Lname} onChange={(t) => setFormData({...formData, Lname: t})} />
+                    <InputField 
+                        label="First Name *" 
+                        value={formData.Fname} 
+                        onChange={(t) => setFormData({...formData, Fname: t})} 
+                        placeholder="e.g. John"
+                    />
+                    <InputField 
+                        label="Middle Name" 
+                        value={formData.Mname} 
+                        onChange={(t) => setFormData({...formData, Mname: t})} 
+                        placeholder="Optional"
+                    />
+                    <InputField 
+                        label="Last Name *" 
+                        value={formData.Lname} 
+                        onChange={(t) => setFormData({...formData, Lname: t})} 
+                        placeholder="e.g. Doe"
+                    />
 
                     <Text style={styles.label}>Class *</Text>
                     <View style={styles.pickerWrapper}>
                         <Picker
                             selectedValue={formData.class}
                             onValueChange={(v) => setFormData({...formData, class: v})}
+                            style={styles.picker}
                         >
-                            <Picker.Item label="Select Class" value="" />
+                            <Picker.Item label="Select Class" value="" color="#9CA3AF" />
                             {classOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
                         </Picker>
                     </View>
@@ -141,8 +112,9 @@ export default function AddStudentScreen({ navigation }) {
                         <Picker
                             selectedValue={formData.town}
                             onValueChange={(v) => setFormData({...formData, town: v})}
+                            style={styles.picker}
                         >
-                            <Picker.Item label="Select Town" value="" />
+                            <Picker.Item label="Select Town" value="" color="#9CA3AF" />
                             {townOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
                         </Picker>
                     </View>
@@ -152,6 +124,7 @@ export default function AddStudentScreen({ navigation }) {
                         value={formData.guardianPhone} 
                         onChange={(t) => setFormData({...formData, guardianPhone: t})} 
                         keyboard="phone-pad"
+                        placeholder="024 XXX XXXX"
                     />
                 </View>
 
@@ -160,14 +133,21 @@ export default function AddStudentScreen({ navigation }) {
                     onPress={handleSubmit}
                     disabled={loading}
                 >
-                    {loading ? <ActivityIndicator color="#FFF" /> : <Text style={styles.submitButtonText}>Register Student</Text>}
+                    {loading ? (
+                        <ActivityIndicator color="#FFF" />
+                    ) : (
+                        <>
+                            <Ionicons name="person-add-outline" size={20} color="#FFF" style={{marginRight: 10}} />
+                            <Text style={styles.submitButtonText}>Register Student</Text>
+                        </>
+                    )}
                 </TouchableOpacity>
             </ScrollView>
         </KeyboardAvoidingView>
     );
 }
 
-const InputField = ({ label, value, onChange, keyboard = "default" }) => (
+const InputField = ({ label, value, onChange, placeholder, keyboard = "default" }) => (
     <View style={styles.inputGroup}>
         <Text style={styles.label}>{label}</Text>
         <TextInput 
@@ -175,6 +155,8 @@ const InputField = ({ label, value, onChange, keyboard = "default" }) => (
             onChangeText={onChange} 
             style={styles.input}
             keyboardType={keyboard}
+            placeholder={placeholder}
+            placeholderTextColor="#9CA3AF"
         />
     </View>
 );
@@ -182,24 +164,64 @@ const InputField = ({ label, value, onChange, keyboard = "default" }) => (
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#fff6e9' },
     scrollContent: { padding: 20 },
-    header: { flexDirection: 'row', alignItems: 'center', marginBottom: 20, paddingTop: 40 },
-    backButton: { marginRight: 15 },
-    title: { fontSize: 24, fontWeight: 'bold', color: '#000066' },
-    imageSection: { alignItems: 'center', marginBottom: 20 },
-    imagePickerCircle: { 
-        width: 110, height: 110, borderRadius: 55, backgroundColor: '#fff', 
-        justifyContent: 'center', alignItems: 'center', elevation: 4,
-        borderWidth: 2, borderColor: '#000066', overflow: 'hidden'
+    header: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        marginBottom: 25, 
+        paddingTop: 40 
     },
-    profileImage: { width: '100%', height: '100%' },
-    imagePlaceholder: { alignItems: 'center' },
-    imagePlaceholderText: { fontSize: 12, color: '#000066', fontWeight: '600' },
-    formContainer: { backgroundColor: '#FFFFFF', borderRadius: 20, padding: 20, elevation: 3 },
+    backButton: { 
+        width: 45, 
+        height: 45, 
+        borderRadius: 22.5, 
+        backgroundColor: '#FFF', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        marginRight: 15,
+        elevation: 2 
+    },
+    title: { fontSize: 24, fontWeight: '800', color: '#000066' },
+    subtitle: { fontSize: 14, color: '#64748B', marginTop: 2 },
+    formContainer: { 
+        backgroundColor: '#FFFFFF', 
+        borderRadius: 20, 
+        padding: 20, 
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4
+    },
     inputGroup: { marginBottom: 15 },
-    label: { fontSize: 14, fontWeight: '700', color: '#000066', marginBottom: 5 },
-    input: { backgroundColor: '#fff6e9', borderRadius: 10, padding: 12, fontSize: 16, borderWidth: 1, borderColor: '#E5E7EB' },
-    pickerWrapper: { backgroundColor: '#fff6e9', borderRadius: 10, borderWidth: 1, borderColor: '#E5E7EB', marginBottom: 15 },
-    submitButton: { backgroundColor: '#000066', padding: 18, borderRadius: 15, alignItems: 'center', marginTop: 20 },
+    label: { fontSize: 14, fontWeight: '700', color: '#000066', marginBottom: 6 },
+    input: { 
+        backgroundColor: '#F9FAFB', 
+        borderRadius: 12, 
+        padding: 14, 
+        fontSize: 16, 
+        borderWidth: 1, 
+        borderColor: '#E5E7EB',
+        color: '#1F2937'
+    },
+    pickerWrapper: { 
+        backgroundColor: '#F9FAFB', 
+        borderRadius: 12, 
+        borderWidth: 1, 
+        borderColor: '#E5E7EB', 
+        marginBottom: 15,
+        overflow: 'hidden' 
+    },
+    picker: { height: 55 },
+    submitButton: { 
+        backgroundColor: '#000066', 
+        padding: 18, 
+        borderRadius: 15, 
+        flexDirection: 'row',
+        alignItems: 'center', 
+        justifyContent: 'center',
+        marginTop: 25,
+        elevation: 4
+    },
     submitButtonDisabled: { backgroundColor: '#9CA3AF' },
     submitButtonText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 18 },
 });

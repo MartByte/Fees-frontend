@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   View, Text, ScrollView, TextInput, TouchableOpacity, 
-  StyleSheet, Alert, ActivityIndicator, Modal, Switch, SafeAreaView 
+  StyleSheet, Alert, ActivityIndicator, Modal, Switch 
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Picker } from '@react-native-picker/picker';
 import { Ionicons } from '@expo/vector-icons';
 import ApiService from '../utils/apiService'; 
