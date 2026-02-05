@@ -186,6 +186,20 @@ class ApiService {
         } catch (error) { return handleApiError(error); }
     }
 
+
+    static async getTownFee(town) {
+        try {
+            // encodeURIComponent handles towns with spaces like "Dantano Road"
+            const response = await apiClient.get(`/canteen/town-fee/${encodeURIComponent(town)}`);
+            
+            // Return your standard success response
+            return createApiResponse(true, { fee: response.data.fee }, 'Fee retrieved');
+        } catch (error) {
+            return handleApiError(error);
+        }
+    }
+
+
     // ========== TEACHER MANAGEMENT & INFO ==========
     static async getAllTeachers() {
         try {

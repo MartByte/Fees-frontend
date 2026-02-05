@@ -37,9 +37,10 @@ const EditCanteenScreen = ({ route, navigation }) => {
       
       // 1. Fetch the specific fee for this town from town_fees table
       const feeRes = await ApiService.getTownFee(town);
-      if (feeRes.success) {
-        setDailyFee(parseFloat(feeRes.fee));
-      }
+if (feeRes.success) {
+    // Access the fee from the data object returned by createApiResponse
+    setDailyFee(parseFloat(feeRes.data.fee));
+}
 
       // 2. Fetch the current status of all students for this day
       const res = await ApiService.getCanteenCollect(town, date);
