@@ -10,11 +10,35 @@ import ApiService from '../utils/apiService';
 export default function StudentsByClassScreen() {
     const [selectedClass, setSelectedClass] = useState('');
     const [students, setStudents] = useState([]);
+    const [classOptions, setClassOptions] = useState([]); // Dynamic classes state
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true); // Initial fetch loading
     const navigation = useNavigation();
 
-    const classOptions = ['KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS1', 'JHS2', 'JHS3'];
+    // 1. Fetch available classes from database on mount
+    useEffect(() => {
+        const fetchClasses = async () => {
+            try {
+                const result = await ApiService.getClasses();
+                if (result.success) {
+                    // Check if data is array of strings or objects (e.g., {className: 'KG1'})
+                    const classes = Array.isArray(result.data) 
+                        ? result.data.map(c => typeof c === 'string' ? c : c.className)
+                        : [];
+                    setClassOptions(classes);
+                } else {
+                    Alert.alert('Error', 'Failed to load classes');
+                }
+            } catch (err) {
+                console.error("Class Fetch Error:", err);
+            } finally {
+                setInitialLoading(false);
+            }
+        };
+        fetchClasses();
+    }, []);
 
+    // 2. Fetch students when selected class changes
     useEffect(() => {
         if (selectedClass) {
             fetchStudentsByClass(selectedClass);
@@ -28,7 +52,6 @@ export default function StudentsByClassScreen() {
         try {
             const result = await ApiService.getStudentsByClass(className);
             if (result.success) {
-                // Sorting alphabetically by name for better UX
                 const sortedData = result.data.sort((a, b) => a.fullName.localeCompare(b.fullName));
                 setStudents(sortedData);
             } else {
@@ -112,7 +135,6 @@ export default function StudentsByClassScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
             
-            {/* Custom Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color="#1E293B" />
@@ -123,26 +145,29 @@ export default function StudentsByClassScreen() {
                 </View>
             </View>
 
-            {/* Class Selector - Horizontal Scroll for better UX */}
             <View style={styles.selectorContainer}>
                 <Text style={styles.label}>Select Class:</Text>
-                <FlatList
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    data={classOptions}
-                    keyExtractor={(item) => item}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity 
-                            style={[styles.classTab, selectedClass === item && styles.activeTab]}
-                            onPress={() => setSelectedClass(item)}
-                        >
-                            <Text style={[styles.classTabText, selectedClass === item && styles.activeTabText]}>
-                                {item}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                    contentContainerStyle={styles.tabsContent}
-                />
+                {initialLoading ? (
+                    <ActivityIndicator size="small" color="#000066" style={{ marginVertical: 10 }} />
+                ) : (
+                    <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={classOptions}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity 
+                                style={[styles.classTab, selectedClass === item && styles.activeTab]}
+                                onPress={() => setSelectedClass(item)}
+                            >
+                                <Text style={[styles.classTabText, selectedClass === item && styles.activeTabText]}>
+                                    {item}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        contentContainerStyle={styles.tabsContent}
+                    />
+                )}
             </View>
 
             {loading ? (
@@ -169,6 +194,7 @@ export default function StudentsByClassScreen() {
         </View>
     );
 }
+
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#F8FAFC' },

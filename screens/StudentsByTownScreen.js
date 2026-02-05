@@ -10,11 +10,35 @@ import ApiService from '../utils/apiService';
 export default function StudentsByTownScreen() {
     const [selectedTown, setSelectedTown] = useState('');
     const [students, setStudents] = useState([]);
+    const [townOptions, setTownOptions] = useState([]); // State for dynamic towns
     const [loading, setLoading] = useState(false);
+    const [initialLoading, setInitialLoading] = useState(true); // Loading for towns
     const navigation = useNavigation();
 
-    const townOptions = ['Dantano', 'Dantano road', 'Noberkaw', 'Kukuom', 'Yankye', 'Asufufuo', 'Anwiam', 'Tanoso', 'Siana', 'School'];
+    // 1. Fetch towns on initial load
+    useEffect(() => {
+        const fetchTowns = async () => {
+            try {
+                const result = await ApiService.getAvailableTowns();
+                if (result.success) {
+                    // Check if data is array of strings or array of objects
+                    const towns = Array.isArray(result.data) 
+                        ? result.data.map(t => typeof t === 'string' ? t : t.townName)
+                        : [];
+                    setTownOptions(towns);
+                } else {
+                    Alert.alert('Error', 'Failed to load towns from database');
+                }
+            } catch (err) {
+                console.error(err);
+            } finally {
+                setInitialLoading(false);
+            }
+        };
+        fetchTowns();
+    }, []);
 
+    // 2. Fetch students when town changes
     useEffect(() => {
         if (selectedTown) {
             fetchStudentsByTown(selectedTown);
@@ -28,7 +52,6 @@ export default function StudentsByTownScreen() {
         try {
             const result = await ApiService.getStudentsByTown(town);
             if (result.success) {
-                // Sort students by name
                 const sortedData = result.data.sort((a, b) => a.fullName.localeCompare(b.fullName));
                 setStudents(sortedData);
             } else {
@@ -104,7 +127,6 @@ export default function StudentsByTownScreen() {
         <View style={styles.container}>
             <StatusBar barStyle="dark-content" />
             
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
                     <Ionicons name="arrow-back" size={24} color="#1E293B" />
@@ -115,31 +137,34 @@ export default function StudentsByTownScreen() {
                 </View>
             </View>
 
-            {/* Town Selector Chips */}
             <View style={styles.selectorContainer}>
-                <FlatList
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    data={townOptions}
-                    keyExtractor={(item) => item}
-                    renderItem={({ item }) => (
-                        <TouchableOpacity 
-                            style={[styles.chip, selectedTown === item && styles.activeChip]}
-                            onPress={() => setSelectedTown(item)}
-                        >
-                            <Ionicons 
-                                name="location" 
-                                size={14} 
-                                color={selectedTown === item ? "#FFF" : "#64748B"} 
-                                style={{ marginRight: 5 }}
-                            />
-                            <Text style={[styles.chipText, selectedTown === item && styles.activeChipText]}>
-                                {item}
-                            </Text>
-                        </TouchableOpacity>
-                    )}
-                    contentContainerStyle={styles.tabsContent}
-                />
+                {initialLoading ? (
+                    <ActivityIndicator size="small" color="#000066" style={{ paddingLeft: 20 }} />
+                ) : (
+                    <FlatList
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        data={townOptions}
+                        keyExtractor={(item) => item}
+                        renderItem={({ item }) => (
+                            <TouchableOpacity 
+                                style={[styles.chip, selectedTown === item && styles.activeChip]}
+                                onPress={() => setSelectedTown(item)}
+                            >
+                                <Ionicons 
+                                    name="location" 
+                                    size={14} 
+                                    color={selectedTown === item ? "#FFF" : "#64748B"} 
+                                    style={{ marginRight: 5 }}
+                                />
+                                <Text style={[styles.chipText, selectedTown === item && styles.activeChipText]}>
+                                    {item}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                        contentContainerStyle={styles.tabsContent}
+                    />
+                )}
             </View>
 
             {loading ? (

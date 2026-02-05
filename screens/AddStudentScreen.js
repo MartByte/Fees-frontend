@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Picker } from '@react-native-picker/picker';
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react'; // Added useEffect
 import { 
     Alert, KeyboardAvoidingView, Platform, ScrollView, 
     StyleSheet, Text, TextInput, TouchableOpacity, View, ActivityIndicator 
@@ -17,12 +17,44 @@ export default function AddStudentScreen({ navigation }) {
         guardianPhone: ''
     });
     const [loading, setLoading] = useState(false);
+    
+    // States for dynamic data
+    const [classOptions, setClassOptions] = useState([]);
+    const [townOptions, setTownOptions] = useState([]);
+    const [isFetchingOptions, setIsFetchingOptions] = useState(true);
 
-    const classOptions = ['KG1', 'KG2', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5', 'Class 6', 'JHS1', 'JHS2', 'JHS3'];
-    const townOptions = ['Dantano', 'Dantano road', 'Noberkaw', 'Kukuom', 'Yankye', 'Asufufuo', 'Anwiam', 'Tanoso', 'Siana', 'School'];
+    // Fetch Towns and Classes on component load
+    useEffect(() => {
+        const loadPickerData = async () => {
+            try {
+                setIsFetchingOptions(true);
+                // Fetching both in parallel for better performance
+                const [townRes, classRes] = await Promise.all([
+                    ApiService.getAvailableTowns(),
+                    ApiService.getClasses()
+                ]);
+
+                if (townRes.success) {
+                    const towns = townRes.data.map(t => typeof t === 'string' ? t : t.townName);
+                    setTownOptions(towns);
+                }
+
+                if (classRes.success) {
+                    const classes = classRes.data.map(c => typeof c === 'string' ? c : c.className);
+                    setClassOptions(classes);
+                }
+            } catch (error) {
+                console.error("Error loading form options:", error);
+                Alert.alert('Notice', 'Using default lists due to connection error.');
+            } finally {
+                setIsFetchingOptions(false);
+            }
+        };
+
+        loadPickerData();
+    }, []);
 
     const handleSubmit = async () => {
-        // Validation: Ensure required fields are filled
         if (!formData.Fname || !formData.Lname || !formData.class || !formData.town) {
             Alert.alert('Missing Info', 'Please fill in all required fields (*)');
             return;
@@ -30,7 +62,6 @@ export default function AddStudentScreen({ navigation }) {
 
         setLoading(true);
 
-        // Prepare simple JSON data (FormData is no longer needed since we removed the image)
         const studentData = {
             Fname: formData.Fname,
             Mname: formData.Mname,
@@ -64,7 +95,6 @@ export default function AddStudentScreen({ navigation }) {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-                {/* Simplified Header */}
                 <View style={styles.header}>
                     <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
                         <Ionicons name="arrow-back" size={24} color="#000066" />
@@ -97,26 +127,38 @@ export default function AddStudentScreen({ navigation }) {
 
                     <Text style={styles.label}>Class *</Text>
                     <View style={styles.pickerWrapper}>
-                        <Picker
-                            selectedValue={formData.class}
-                            onValueChange={(v) => setFormData({...formData, class: v})}
-                            style={styles.picker}
-                        >
-                            <Picker.Item label="Select Class" value="" color="#9CA3AF" />
-                            {classOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
-                        </Picker>
+                        {isFetchingOptions ? (
+                            <ActivityIndicator size="small" color="#000066" style={{ height: 55 }} />
+                        ) : (
+                            <Picker
+                                selectedValue={formData.class}
+                                onValueChange={(v) => setFormData({...formData, class: v})}
+                                style={styles.picker}
+                            >
+                                <Picker.Item label="Select Class" value="" color="#9CA3AF" />
+                                {classOptions.map((opt, index) => (
+                                    <Picker.Item key={`class-${index}`} label={opt} value={opt} />
+                                ))}
+                            </Picker>
+                        )}
                     </View>
 
                     <Text style={styles.label}>Town *</Text>
                     <View style={styles.pickerWrapper}>
-                        <Picker
-                            selectedValue={formData.town}
-                            onValueChange={(v) => setFormData({...formData, town: v})}
-                            style={styles.picker}
-                        >
-                            <Picker.Item label="Select Town" value="" color="#9CA3AF" />
-                            {townOptions.map(opt => <Picker.Item key={opt} label={opt} value={opt} />)}
-                        </Picker>
+                        {isFetchingOptions ? (
+                            <ActivityIndicator size="small" color="#000066" style={{ height: 55 }} />
+                        ) : (
+                            <Picker
+                                selectedValue={formData.town}
+                                onValueChange={(v) => setFormData({...formData, town: v})}
+                                style={styles.picker}
+                            >
+                                <Picker.Item label="Select Town" value="" color="#9CA3AF" />
+                                {townOptions.map((opt, index) => (
+                                    <Picker.Item key={`town-${index}`} label={opt} value={opt} />
+                                ))}
+                            </Picker>
+                        )}
                     </View>
 
                     <InputField 
@@ -129,9 +171,9 @@ export default function AddStudentScreen({ navigation }) {
                 </View>
 
                 <TouchableOpacity 
-                    style={[styles.submitButton, loading && styles.submitButtonDisabled]} 
+                    style={[styles.submitButton, (loading || isFetchingOptions) && styles.submitButtonDisabled]} 
                     onPress={handleSubmit}
-                    disabled={loading}
+                    disabled={loading || isFetchingOptions}
                 >
                     {loading ? (
                         <ActivityIndicator color="#FFF" />
@@ -146,6 +188,8 @@ export default function AddStudentScreen({ navigation }) {
         </KeyboardAvoidingView>
     );
 }
+
+
 
 const InputField = ({ label, value, onChange, placeholder, keyboard = "default" }) => (
     <View style={styles.inputGroup}>
