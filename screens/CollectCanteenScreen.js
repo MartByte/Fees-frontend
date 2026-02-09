@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { 
   View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, 
   Alert, TextInput, ScrollView, Modal, RefreshControl, Platform
@@ -13,6 +13,7 @@ const CollectCanteenScreen = ({ route, navigation }) => {
   const today = new Date().toISOString().split('T')[0];
   const { town: routeTown, date: routeDate } = route.params || {};
   
+  // State Management
   const [date, setDate] = useState(routeDate || today);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -22,28 +23,37 @@ const CollectCanteenScreen = ({ route, navigation }) => {
   const [availableTowns, setAvailableTowns] = useState([]);
   const [showTownSelector, setShowTownSelector] = useState(false);
   
+  // Modal States
   const [showNormalModal, setShowNormalModal] = useState(false);
   const [showAdvancedModal, setShowAdvancedModal] = useState(false);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [showExemptedModal, setShowExemptedModal] = useState(false);
   const [showAdvanceAmountModal, setShowAdvanceAmountModal] = useState(false);
+  
+  // Selection States
   const [selectedClass, setSelectedClass] = useState(null);
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [modalStudents, setModalStudents] = useState([]);
   const [selectedStudentForAdvance, setSelectedStudentForAdvance] = useState(null);
   const [advanceAmount, setAdvanceAmount] = useState('');
   
+  // Logic States
   const [attendance, setAttendance] = useState({});
   const [amounts, setAmounts] = useState({});
+  const [dbState, setDbState] = useState({}); // To track what is already "Saved" in DB
 
+  // 1. Initial Load: Get Session User
   useEffect(() => {
     const initialize = async () => {
       try {
         const user = await SessionManager.getCurrentUser();
         if (!user) {
           Alert.alert('Error', 'Session expired. Please log in.');
+          navigation.navigate('Login');
           return;
         }
+        
+        // Handle Admin vs Teacher Town Selection
         if (user.role?.toLowerCase() === 'admin') {
           if (routeTown === 'all' || !routeTown) {
             await fetchAvailableTowns();
@@ -63,80 +73,58 @@ const CollectCanteenScreen = ({ route, navigation }) => {
     initialize();
   }, [routeTown]);
 
+  // 2. Fetch Data when Town or Date changes
   useEffect(() => {
     if (selectedTown && selectedTown !== 'all') {
-      fetchData(selectedTown, date);
+      fetchData();
       fetchAllStudents(selectedTown);
     }
   }, [selectedTown, date]);
 
-  const fetchData = async (town = selectedTown, dateParam = date) => {
-    const finalDate = dateParam || date || today;
-    if (!town || town === 'all') return;
+  const fetchData = async () => {
+    if (!selectedTown || selectedTown === 'all') return;
 
     try {
       if (!refreshing) setLoading(true);
-      const response = await ApiService.getCanteenCollect(town, finalDate);
+      const response = await ApiService.getCanteenCollect(selectedTown, date);
       
       if (response.success) {
         const rawData = response.data?.data || response.data || {};
         const classesData = rawData.classes || {};
-        const validatedClassesData = {};
-        const dbAttendance = {};
+        
+        const initialAttendance = {};
+        const initialAmounts = {};
+        const initialDbState = {};
 
+        // Loop through the data to map database values to local state
         Object.entries(classesData).forEach(([className, categories]) => {
-          validatedClassesData[className] = {
-            normal: Array.isArray(categories?.normal) ? categories.normal : [],
-            advanced: Array.isArray(categories?.advanced) ? categories.advanced : [],
-            credit: Array.isArray(categories?.credit) ? categories.credit : [],
-            exempted: Array.isArray(categories?.exempted) ? categories.exempted : []
-          };
-
           ['normal', 'advanced', 'credit', 'exempted'].forEach(group => {
-            validatedClassesData[className][group].forEach(student => {
-              dbAttendance[student.studentID] = student.attendanceStatus === 'present';
-            });
+            if (Array.isArray(categories[group])) {
+              categories[group].forEach(student => {
+                const isPresent = student.attendanceStatus === 'present';
+                initialAttendance[student.studentID] = isPresent;
+                initialDbState[student.studentID] = isPresent;
+                
+                // Map the paid amount if it exists, otherwise leave blank
+                if (student.paidAmount !== null && student.paidAmount !== undefined) {
+                  initialAmounts[student.studentID] = String(student.paidAmount);
+                }
+              });
+            }
           });
         });
 
-        setClassData(validatedClassesData);
-        setAttendance(dbAttendance);
+        setClassData(classesData);
+        setAttendance(initialAttendance);
+        setAmounts(initialAmounts);
+        setDbState(initialDbState);
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to fetch canteen data');
+      console.error("Fetch Data Error:", error);
+      Alert.alert('Error', 'Could not refresh student list.');
     } finally {
       setLoading(false);
       setRefreshing(false);
-    }
-  };
-
-  const handleAttendanceToggle = (studentID, isPresent) => {
-    setAttendance(prev => ({ ...prev, [studentID]: isPresent }));
-  };
-
-  const submitCollection = async () => {
-    try {
-      setLoading(true);
-      const user = await SessionManager.getCurrentUser();
-      const payload = {
-        town: selectedTown,
-        date,
-        attendance,
-        amounts,
-        collectedBy: user.teacherID || user.adminID || user.id,
-        role: user.role,
-        classData
-      };
-      
-      const response = await ApiService.postCanteenCollect(payload);
-      if (response.success) {
-        Alert.alert('Success', "Day's attendance and fees recorded.");
-        navigation.goBack();
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Submission failed');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -150,15 +138,46 @@ const CollectCanteenScreen = ({ route, navigation }) => {
     if (res.success) setAllStudents(res.data || []);
   };
 
+  // 3. Logic: Handling Submission
+  const submitCollection = async () => {
+    try {
+      setLoading(true);
+      const user = await SessionManager.getCurrentUser();
+      const payload = {
+        town: selectedTown,
+        date,
+        attendance,
+        amounts,
+        collectedBy: user.teacherID || user.adminID || user.id,
+        classData
+      };
+      
+      const response = await ApiService.postCanteenCollect(payload);
+      if (response.success) {
+        Alert.alert('Success', "Records updated successfully.");
+        fetchData(); // Refresh to show "Saved" badges
+      }
+    } catch (error) {
+      Alert.alert('Error', 'Submission failed. Check network.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAttendanceToggle = (studentID, isPresent) => {
+    setAttendance(prev => ({ ...prev, [studentID]: isPresent }));
+  };
+
+  // 4. Logic: Modal & Movement
   const handleAddButtonPress = (category, className) => {
     setSelectedClass(className);
     setSelectedCategory(category);
-    const cat = category.toLowerCase().trim();
     const filtered = allStudents.filter(s => 
       String(s.class).toLowerCase().trim() === String(className).toLowerCase().trim()
     );
     setModalStudents(filtered);
 
+    const cat = category.toLowerCase();
     if (cat === 'normal') setShowNormalModal(true);
     else if (cat === 'advanced') setShowAdvancedModal(true);
     else if (cat === 'credit') setShowCreditModal(true);
@@ -183,48 +202,26 @@ const CollectCanteenScreen = ({ route, navigation }) => {
       const userId = user.teacherID || user.adminID || user.id;
 
       if (advAmount && parseFloat(advAmount) > 0) {
-        const topupRes = await ApiService.topupBalance(
-          student.studentID, 
-          parseFloat(advAmount), 
-          userId, 
-          selectedTown
-        );
-        
-        if (!topupRes.success) {
-          Alert.alert('Record Error', topupRes.message || 'Could not record cash payment.');
-          setLoading(false);
-          return;
-        }
+        await ApiService.topupBalance(student.studentID, parseFloat(advAmount), userId, selectedTown);
       }
 
-      const currentCategory = student.paymentType || student.category || 'normal';
-      
-      if (currentCategory.toLowerCase() !== targetCategory.toLowerCase()) {
-        const payload = {
-          studentID: student.studentID,
-          toGroup: targetCategory.toLowerCase(),
-          className: className,
-          town: selectedTown,
-          date: date,
-          isPresent: true,
-          collectedBy: userId 
-        };
+      const payload = {
+        studentID: student.studentID,
+        toGroup: targetCategory.toLowerCase(),
+        className: className,
+        town: selectedTown,
+        date: date,
+        isPresent: true,
+        collectedBy: userId 
+      };
 
-        const res = await ApiService.moveStudentToGroup(payload);
-        if (!res.success) {
-          Alert.alert('Error', 'Student moved failed: ' + res.message);
-          setLoading(false);
-          return;
-        }
+      const res = await ApiService.moveStudentToGroup(payload);
+      if (res.success) {
+        Alert.alert('Success', 'Student status updated.');
+        fetchData(); 
       }
-
-      Alert.alert('Success', 'Transaction recorded successfully');
-      setAttendance(prev => ({ ...prev, [student.studentID]: true }));
-      fetchData(selectedTown, date);
-      
     } catch (e) {
-      console.error("Move Error:", e);
-      Alert.alert('Error', 'Action failed: ' + e.message);
+      Alert.alert('Error', 'Move failed');
     } finally {
       setLoading(false);
       setShowNormalModal(false);
@@ -245,18 +242,25 @@ const CollectCanteenScreen = ({ route, navigation }) => {
     return totals;
   };
 
+  // 5. Render Helpers
   const renderStudent = (student, category, className) => {
     const isChecked = !!attendance[student.studentID];
+    const wasInDb = !!dbState[student.studentID];
     const isAdv = category === 'Advanced'; 
+    const isExempt = category === 'Exempted';
     
     return (
-      <View key={student.studentID} style={[styles.studentRow, isChecked && styles.activeRow]}>
+      <View key={student.studentID} style={[
+        styles.studentRow, 
+        isChecked && styles.activeRow,
+        wasInDb && isChecked && styles.savedRow
+      ]}>
         <TouchableOpacity 
           style={styles.checkboxContainer} 
           onPress={() => handleAttendanceToggle(student.studentID, !isChecked)}
         >
           <Ionicons 
-            name={isChecked ? "checkbox" : "square-outline"} 
+            name={isChecked ? (wasInDb ? "checkmark-circle" : "checkbox") : "square-outline"} 
             size={24} 
             color={isChecked ? "#10b981" : "#cbd5e1"} 
           />
@@ -268,25 +272,25 @@ const CollectCanteenScreen = ({ route, navigation }) => {
         >
           <Text style={[styles.studentName, isChecked && styles.activeText]}>
             {student.name || `${student.Fname} ${student.Lname}`}
+            {wasInDb && isChecked && <Text style={styles.savedBadge}> (Saved)</Text>}
           </Text>
-          {isAdv ? (
-            <Text style={styles.balanceText}>
-              Bal: GH₵ {student.advance_balance || 0}
-            </Text>
-          ) : null}
+          {isAdv && (
+            <Text style={styles.balanceText}>Bal: GH₵ {student.advance_balance || 0}</Text>
+          )}
         </TouchableOpacity>
 
-        {!isAdv ? (
+        {!isAdv && !isExempt && (
           <View style={styles.amountContainer}>
              <Text style={styles.currencyLabel}>₵</Text>
              <TextInput
               style={styles.amountInput}
-              defaultValue="0"
+              value={amounts[student.studentID] || ""}
+              placeholder="0"
               keyboardType="numeric"
               onChangeText={(val) => setAmounts(prev => ({ ...prev, [student.studentID]: val }))}
             />
           </View>
-        ) : null}
+        )}
       </View>
     );
   };
@@ -303,14 +307,17 @@ const CollectCanteenScreen = ({ route, navigation }) => {
       <View style={[styles.categoryContainer, { borderLeftColor: colorMap[name] }]}>
         <View style={styles.categoryHeader}>
           <Text style={[styles.categoryTitle, { color: colorMap[name] }]}>{name}</Text>
-          <TouchableOpacity style={[styles.addButton, { backgroundColor: colorMap[name] }]} onPress={() => handleAddButtonPress(name, className)}>
+          <TouchableOpacity 
+            style={[styles.addButton, { backgroundColor: colorMap[name] }]} 
+            onPress={() => handleAddButtonPress(name, className)}
+          >
             <Ionicons name="add" size={16} color="#fff" />
           </TouchableOpacity>
         </View>
         {students && students.length > 0 ? (
            students.map((s) => renderStudent(s, name, className))
         ) : (
-          <Text style={styles.emptyText}>No students</Text>
+          <Text style={styles.emptyText}>No students listed</Text>
         )}
       </View>
     );
@@ -320,6 +327,7 @@ const CollectCanteenScreen = ({ route, navigation }) => {
     return (
       <View style={styles.loader}>
         <ActivityIndicator size="large" color="#1e40af" />
+        <Text style={{marginTop: 10, color: '#64748b'}}>Loading Student List...</Text>
       </View>
     );
   }
@@ -328,10 +336,11 @@ const CollectCanteenScreen = ({ route, navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Town Selector Modal */}
       {!!showTownSelector && (
         <View style={styles.townSelectorModal}>
           <View style={styles.townSelectorContent}>
-            <Text style={styles.townSelectorTitle}>Select Area / Bus</Text>
+            <Text style={styles.townSelectorTitle}>Select Bus / Area</Text>
             <ScrollView style={styles.townList}>
               {availableTowns.map((t, i) => (
                 <TouchableOpacity key={i} style={styles.townItem} onPress={() => {
@@ -347,9 +356,10 @@ const CollectCanteenScreen = ({ route, navigation }) => {
         </View>
       )}
 
+      {/* Header */}
       <View style={styles.header}>
         <View>
-          <Text style={styles.townLabel}>{selectedTown || '---'}</Text>
+          <Text style={styles.townLabel}>{selectedTown || 'Select Area'}</Text>
           <Text style={styles.dateLabel}>{new Date(date).toDateString()}</Text>
         </View>
         <TouchableOpacity onPress={() => setShowTownSelector(true)} style={styles.changeBtn}>
@@ -357,9 +367,10 @@ const CollectCanteenScreen = ({ route, navigation }) => {
         </TouchableOpacity>
       </View>
       
+      {/* Main List */}
       <ScrollView 
         style={styles.scrollContainer}
-        contentContainerStyle={{ paddingBottom: 150 }}
+        contentContainerStyle={{ paddingBottom: 160 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => {setRefreshing(true); fetchData();}} />}
       >
         {Object.entries(classData).map(([className, categories]) => (
@@ -376,17 +387,19 @@ const CollectCanteenScreen = ({ route, navigation }) => {
         ))}
       </ScrollView>
       
+      {/* Footer Stats & Submit */}
       <View style={styles.footer}>
         <View style={styles.statsBar}>
-            <View style={styles.statBox}><Text style={styles.statVal}>{String(stats.paid)}</Text><Text style={styles.statLab}>Paid</Text></View>
+            <View style={styles.statBox}><Text style={styles.statVal}>{String(stats.paid)}</Text><Text style={styles.statLab}>Daily</Text></View>
             <View style={styles.statBox}><Text style={styles.statVal}>{String(stats.adv)}</Text><Text style={styles.statLab}>Adv</Text></View>
             <View style={styles.statBox}><Text style={styles.statVal}>{String(stats.cred)}</Text><Text style={styles.statLab}>Credit</Text></View>
         </View>
         <TouchableOpacity style={styles.submitButton} onPress={submitCollection}>
-          <Text style={styles.submitButtonText}>Submit Day's Collection</Text>
+          <Text style={styles.submitButtonText}>Save & Submit Collection</Text>
         </TouchableOpacity>
       </View>
 
+      {/* Advance Amount Entry Modal */}
       <Modal visible={!!showAdvanceAmountModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.advanceAmountModalContainer}>
@@ -412,6 +425,7 @@ const CollectCanteenScreen = ({ route, navigation }) => {
         </View>
       </Modal>
 
+      {/* Category Selection Modals */}
       <StudentSelectionModal visible={showNormalModal} onClose={() => setShowNormalModal(false)} students={modalStudents} onSelectStudent={(s) => handleStudentSelection(s, 'Normal', selectedClass)} title="Add to Normal" currentGroupStudents={classData[selectedClass]?.normal || []} />
       <StudentSelectionModal visible={showCreditModal} onClose={() => setShowCreditModal(false)} students={modalStudents} onSelectStudent={(s) => handleStudentSelection(s, 'Credit', selectedClass)} title="Add to Credit" currentGroupStudents={classData[selectedClass]?.credit || []} />
       <StudentSelectionModal visible={showExemptedModal} onClose={() => setShowExemptedModal(false)} students={modalStudents} onSelectStudent={(s) => handleStudentSelection(s, 'Exempted', selectedClass)} title="Add to Exempted" currentGroupStudents={classData[selectedClass]?.exempted || []} />
@@ -419,7 +433,6 @@ const CollectCanteenScreen = ({ route, navigation }) => {
     </SafeAreaView>
   );
 };
-// ... styles remain the same
 
 export default CollectCanteenScreen;
 
@@ -440,9 +453,11 @@ const styles = StyleSheet.create({
   addButton: { width: 22, height: 22, borderRadius: 11, justifyContent: 'center', alignItems: 'center' },
   studentRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f1f5f9', paddingHorizontal: 4 },
   activeRow: { backgroundColor: '#f0fdf4', borderRadius: 8 },
+  savedRow: { borderLeftWidth: 3, borderLeftColor: '#10b981' },
   checkboxContainer: { paddingRight: 12, paddingLeft: 4 },
   studentName: { fontSize: 15, color: '#334155', fontWeight: '500' },
   activeText: { color: '#065f46', fontWeight: '700' },
+  savedBadge: { fontSize: 10, color: '#10b981', fontWeight: '600' },
   balanceText: { fontSize: 11, color: '#8b5cf6', fontWeight: '600' },
   amountContainer: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f1f5f9', borderRadius: 8, paddingHorizontal: 8 },
   currencyLabel: { fontSize: 12, color: '#64748b', marginRight: 2 },
