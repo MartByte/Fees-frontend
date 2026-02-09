@@ -6,8 +6,9 @@ import {
   FlatList, 
   TouchableOpacity, 
   TextInput, 
-  StyleSheet 
+  StyleSheet,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const StudentSelectionModal = ({ 
   visible, 
@@ -19,25 +20,32 @@ const StudentSelectionModal = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   
-  // Safety check: ensure students is always an array
   const safeStudents = Array.isArray(students) ? students : [];
   const safeCurrentGroupStudents = Array.isArray(currentGroupStudents) ? currentGroupStudents : [];
   
   // Filter out students already in the target group
   const availableStudents = safeStudents.filter(student => 
     !safeCurrentGroupStudents.some(groupStudent => 
-      groupStudent.studentID === student.studentID
+      Number(groupStudent.studentID) === Number(student.studentID)
     )
   );
   
-  // Filter by search query
-  const filteredStudents = availableStudents.filter(student =>
-    `${student.Fname} ${student.Lname}`.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter by search query with robust name checking
+  const filteredStudents = availableStudents.filter(student => {
+    const fullName = (student.name || `${student.Fname || ''} ${student.Lname || ''}`).toLowerCase();
+    return fullName.includes(searchQuery.toLowerCase());
+  });
+
+  // Helper to render name correctly
+  const renderName = (item) => {
+    if (item.name) return item.name;
+    if (item.Fname || item.Lname) return `${item.Fname || ''} ${item.Lname || ''}`.trim();
+    return "Unknown Name";
+  };
   
   return (
     <Modal visible={visible} animationType="slide" transparent={false}>
-      <View style={styles.modalContainer}>
+      <SafeAreaView style={styles.modalContainer}>
         <View style={styles.modalHeader}>
           <Text style={styles.modalTitle}>{title}</Text>
           <TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -50,6 +58,7 @@ const StudentSelectionModal = ({
           placeholder="Search students..."
           value={searchQuery}
           onChangeText={setSearchQuery}
+          clearButtonMode="while-editing"
         />
         
         <FlatList
@@ -58,28 +67,36 @@ const StudentSelectionModal = ({
           renderItem={({ item }) => (
             <TouchableOpacity 
               style={styles.studentItem}
-              onPress={() => onSelectStudent(item)}
+              onPress={() => {
+                setSearchQuery(''); // Clear search on select
+                onSelectStudent(item);
+              }}
             >
-              <Text style={styles.studentName}>
-                {item.Fname} {item.Lname}
-              </Text>
-              <Text style={styles.studentClass}>{item.class}</Text>
+              <View>
+                <Text style={styles.studentName}>
+                  {renderName(item)}
+                </Text>
+                <Text style={styles.studentClass}>
+                  ID: {item.studentID} • {item.class || 'No Class'}
+                </Text>
+              </View>
             </TouchableOpacity>
           )}
           ListEmptyComponent={
-            <Text style={styles.emptyText}>No students available</Text>
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>
+                {searchQuery ? "No students match your search" : "No students available in this class"}
+              </Text>
+            </View>
           }
         />
-      </View>
+      </SafeAreaView>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f9fafb',
-  },
+  modalContainer: { flex: 1, backgroundColor: '#f9fafb' },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -89,49 +106,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: '#e5e7eb',
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#111827',
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeButtonText: {
-    fontSize: 20,
-    color: '#6b7280',
-  },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1e40af' },
+  closeButton: { padding: 8 },
+  closeButtonText: { fontSize: 22, color: '#64748b', fontWeight: 'bold' },
   searchInput: {
     margin: 16,
-    padding: 12,
+    padding: 14,
     backgroundColor: '#fff',
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#d1d5db',
+    borderColor: '#e2e8f0',
     fontSize: 16,
+    color: '#1e293b'
   },
   studentItem: {
     padding: 16,
     backgroundColor: '#fff',
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: '#f1f5f9',
   },
-  studentName: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
-    marginBottom: 4,
-  },
-  studentClass: {
-    fontSize: 14,
-    color: '#6b7280',
-  },
-  emptyText: {
-    textAlign: 'center',
-    padding: 20,
-    color: '#6b7280',
-    fontStyle: 'italic',
-  },
+  studentName: { fontSize: 16, fontWeight: '700', color: '#334155', marginBottom: 4 },
+  studentClass: { fontSize: 13, color: '#94a3b8', fontWeight: '500' },
+  emptyContainer: { padding: 40, alignItems: 'center' },
+  emptyText: { textAlign: 'center', color: '#94a3b8', fontStyle: 'italic', fontSize: 15 },
 });
 
 export default StudentSelectionModal;
