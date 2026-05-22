@@ -131,26 +131,65 @@ const CollectCanteenScreen = ({ route, navigation }) => {
 
   // --- CORE SYNC LOGIC ---
   const syncSingleRecord = async (studentID, isPresent, amountValue) => {
-    try {
-      const user = await SessionManager.getCurrentUser();
-      const payload = {
-        town: selectedTown,
-        date: date,
-        attendance: { [studentID]: isPresent },
-        amounts: { [studentID]: amountValue || 0 },
-        collectedBy: user.teacherID || user.adminID || user.id,
-        classData: classData 
-      };
+  try {
+    const user = await SessionManager.getCurrentUser();
+    
+    // 1. Find the target student inside your existing classData state
+    let targetStudent = null;
+    let targetClassName = null;
+    let targetCategoryName = null;
 
-      const response = await ApiService.postCanteenCollect(payload);
-      if (response.success) {
-        setDbState(prev => ({ ...prev, [studentID]: isPresent }));
-        setLastSynced(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    for (const [className, categories] of Object.entries(classData)) {
+      for (const [categoryName, studentsList] of Object.entries(categories)) {
+        const found = studentsList.find(s => s.studentID === studentID);
+        if (found) {
+          targetStudent = found;
+          targetClassName = className;
+          targetCategoryName = categoryName;
+          break;
+        }
       }
-    } catch (error) {
-      console.error("Auto-sync failed:", error);
+      if (targetStudent) break;
     }
-  };
+
+    // Fallback protection: If the student isn't loaded in the UI state yet, exit safely
+    if (!targetStudent) {
+      console.warn("Could not isolate student path for sync.");
+      return;
+    }
+
+    // 2. Construct a clean, isolated mock of classData containing ONLY this student
+    const isolatedClassData = {
+      [targetClassName]: {
+        normal: [],
+        advanced: [],
+        credit: [],
+        exempted: [],
+        // Inject the student object cleanly into their designated array slot
+        [targetCategoryName]: [targetStudent] 
+      }
+    };
+
+    // 3. Package the payload with our isolated datasets
+    const payload = {
+      town: selectedTown,
+      date: date,
+      attendance: { [studentID]: isPresent },
+      amounts: { [studentID]: amountValue || "" },
+      collectedBy: user.teacherID || user.adminID || user.id,
+      classData: isolatedClassData // <-- Safely satisfies the backend loop structure
+    };
+
+    // 4. Send the targeted record to the server
+    const response = await ApiService.postCanteenCollect(payload);
+    if (response.success) {
+      setDbState(prev => ({ ...prev, [studentID]: isPresent }));
+      setLastSynced(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+    }
+  } catch (error) {
+    console.error("Auto-sync failed:", error);
+  }
+};
 
   const handleAttendanceToggle = (studentID, isPresent) => {
     // Optimistic Update
