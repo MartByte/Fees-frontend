@@ -13,7 +13,7 @@ const getHost = () => {
 };
 
 const LOCAL_URL = `http://${getHost()}:5000`; // Your local Node.js port
-const REMOTE_URL = 'http://164.90.161.30';
+const REMOTE_URL = 'http://164.90.161.30:5000';
 
 // Use Remote URL by default, but you can toggle this back to LOCAL_URL during coding
 const API_BASE_URL = REMOTE_URL; 
